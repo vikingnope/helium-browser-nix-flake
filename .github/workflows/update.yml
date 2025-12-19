@@ -49,6 +49,9 @@ jobs:
           sed -i "/x86_64-linux = {/,/sha256 =/ s/sha256 = \"[^\"]*\"/sha256 = \"$X86_HASH\"/" flake.nix
           sed -i "/aarch64-linux = {/,/sha256 =/ s/sha256 = \"[^\"]*\"/sha256 = \"$ARM_HASH\"/" flake.nix
 
+      - name: Update flake inputs
+        run: nix flake update
+
       - name: Verify flake
         run: nix flake check
 
@@ -66,7 +69,7 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add flake.nix
+          git add flake.nix flake.lock
           VERSION=$(grep -oP 'version = "\K[^"]+' flake.nix)
-          git commit -m "chore: update helium to $VERSION"
+          git commit -m "chore: update helium to $VERSION and update flake.lock"
           git push
