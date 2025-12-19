@@ -22,9 +22,21 @@ jobs:
           nix_path: nixpkgs=channel:nixos-unstable
 
       - name: Update version and hashes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          LATEST_VERSION=$(curl -s https://api.github.com/repos/imputnet/helium-linux/releases/latest | jq -r .tag_name)
-          CURRENT_VERSION=$(grep -oP 'version = "\K[^"]+' flake.nix)
+          # 1. Get latest version using authenticated request
+          LATEST_VERSION=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
+            https://api.github.com/repos/imputnet/helium-linux/releases/latest | jq -r .tag_name)
+          
+          # 2. Validate version format (basic regex check)
+          if [[ ! "$LATEST_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+            echo "Error: Invalid version format received: $LATEST_VERSION"
+            exit 1
+          fi
+
+          # 3. Get current version using Nix
+          CURRENT_VERSION=$(nix eval --raw .#helium.version)
 
           if [ "$LATEST_VERSION" == "$CURRENT_VERSION" ]; then
             echo "Already at the latest version: $LATEST_VERSION"
@@ -33,21 +45,20 @@ jobs:
 
           echo "Updating from $CURRENT_VERSION to $LATEST_VERSION"
 
-          # Update version in flake.nix
-          sed -i "s/version = \"$CURRENT_VERSION\"/version = \"$LATEST_VERSION\"/g" flake.nix
+          # 4. Update version string
+          sed -i "s/version = \"$CURRENT_VERSION\"/version = \"$LATEST_VERSION\"/" flake.nix
 
-          # Fetch new hashes
+          # 5. Fetch new hashes and convert to SRI format
           X86_URL="https://github.com/imputnet/helium-linux/releases/download/${LATEST_VERSION}/helium-${LATEST_VERSION}-x86_64_linux.tar.xz"
           ARM_URL="https://github.com/imputnet/helium-linux/releases/download/${LATEST_VERSION}/helium-${LATEST_VERSION}-arm64_linux.tar.xz"
 
-          echo "Fetching hash for x86_64-linux..."
-          X86_HASH=$(nix-prefetch-url "$X86_URL")
-          echo "Fetching hash for aarch64-linux..."
-          ARM_HASH=$(nix-prefetch-url "$ARM_URL")
+          echo "Fetching hashes..."
+          X86_HASH=$(nix hash to-sri --type sha256 $(nix-prefetch-url "$X86_URL"))
+          ARM_HASH=$(nix hash to-sri --type sha256 $(nix-prefetch-url "$ARM_URL"))
 
-          # Update hashes in flake.nix
-          sed -i "/x86_64-linux = {/,/sha256 =/ s/sha256 = \"[^\"]*\"/sha256 = \"$X86_HASH\"/" flake.nix
-          sed -i "/aarch64-linux = {/,/sha256 =/ s/sha256 = \"[^\"]*\"/sha256 = \"$ARM_HASH\"/" flake.nix
+          # 6. Update hashes using safer delimiters
+          sed -i "/x86_64-linux = {/,/sha256 =/ s|sha256 = \"[^\"]*\"|sha256 = \"$X86_HASH\"|" flake.nix
+          sed -i "/aarch64-linux = {/,/sha256 =/ s|sha256 = \"[^\"]*\"|sha256 = \"$ARM_HASH\"|" flake.nix
 
       - name: Update flake inputs
         run: nix flake update
