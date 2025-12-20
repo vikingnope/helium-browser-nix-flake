@@ -22,6 +22,7 @@ jobs:
           nix_path: nixpkgs=channel:nixos-unstable
 
       - name: Update version and hashes
+        id: update-check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -40,9 +41,11 @@ jobs:
 
           if [ "$LATEST_VERSION" == "$CURRENT_VERSION" ]; then
             echo "Already at the latest version: $LATEST_VERSION"
+            echo "update_needed=false" >> $GITHUB_OUTPUT
             exit 0
           fi
 
+          echo "update_needed=true" >> $GITHUB_OUTPUT
           echo "Updating from $CURRENT_VERSION to $LATEST_VERSION"
 
           # 4. Update version string
@@ -61,12 +64,15 @@ jobs:
           sed -i "/aarch64-linux = {/,/sha256 =/ s|sha256 = \"[^\"]*\"|sha256 = \"$ARM_HASH\"|" flake.nix
 
       - name: Update flake inputs
+        if: steps.update-check.outputs.update_needed == 'true'
         run: nix flake update
 
       - name: Verify flake
+        if: steps.update-check.outputs.update_needed == 'true'
         run: nix flake check
 
       - name: Check for changes
+        if: steps.update-check.outputs.update_needed == 'true'
         id: git-check
         run: |
           if [ -n "$(git status --porcelain)" ]; then
@@ -76,7 +82,7 @@ jobs:
           fi
 
       - name: Commit and push changes
-        if: steps.git-check.outputs.changed == 'true'
+        if: steps.update-check.outputs.update_needed == 'true' && steps.git-check.outputs.changed == 'true'
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
