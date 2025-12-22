@@ -27,7 +27,7 @@
           };
           x86_64-darwin = {
             url = "https://github.com/imputnet/helium-macos/releases/download/${version}/helium_${version}_x86_64-macos.dmg";
-            sha256 = "sha256-LtxzeBkECRML+q+qtcTl7uFoM97uZdU1PIcdDqhpd0Y=";
+            sha256 = "sha256-LtxzeBkECRML+q+qtcTljuFoPefuZdk1PIcdDqSGl0Y=";
           };
           aarch64-darwin = {
             url = "https://github.com/imputnet/helium-macos/releases/download/${version}/helium_${version}_arm64-macos.dmg";
