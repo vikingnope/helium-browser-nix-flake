@@ -28,12 +28,6 @@ environment.systemPackages = [
 ];
 ```
 
-## Features
-
-- **Wayland Support**: Enabled by default with `--ozone-platform-hint=auto`.
-- **Desktop Integration**: Includes a `.desktop` file and high-resolution icons.
-- **Auto-Patchelf**: Automatically fixes library dependencies for the pre-compiled binaries.
-
 ## Development
 
 To build the package locally:
