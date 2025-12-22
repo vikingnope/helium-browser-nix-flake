@@ -111,9 +111,10 @@
           installPhase = if pkgs.stdenv.isDarwin then ''
             runHook preInstall
 
-            mkdir -p $out/Applications
-            cp -r Helium.app $out/Applications
+            mkdir -p $out/Applications/Helium.app
+            cp -r . $out/Applications/Helium.app
             
+            mkdir -p $out/bin
             makeWrapper $out/Applications/Helium.app/Contents/MacOS/Helium $out/bin/helium
 
             runHook postInstall
