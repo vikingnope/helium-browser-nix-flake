@@ -26,48 +26,58 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # 1. Get latest version using authenticated request
-          LATEST_VERSION=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
+          set -euo pipefail
+          UPDATE_NEEDED=false
+
+          # 1. Linux Update Check
+          echo "Checking for Linux updates..."
+          LATEST_LINUX_VERSION=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
             https://api.github.com/repos/imputnet/helium-linux/releases/latest | jq -r .tag_name)
-          
-          # 2. Validate version format (basic regex check)
-          if [[ ! "$LATEST_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
-            echo "Error: Invalid version format received: $LATEST_VERSION"
-            exit 1
+          CURRENT_LINUX_VERSION=$(nix eval --raw .#packages.x86_64-linux.helium.version)
+
+          if [ "$LATEST_LINUX_VERSION" != "$CURRENT_LINUX_VERSION" ]; then
+            echo "Updating Linux from $CURRENT_LINUX_VERSION to $LATEST_LINUX_VERSION"
+            sed -i "/linux = \"/ s/linux = \"$CURRENT_LINUX_VERSION\"/linux = \"$LATEST_LINUX_VERSION\"/" flake.nix
+            
+            X86_URL="https://github.com/imputnet/helium-linux/releases/download/${LATEST_LINUX_VERSION}/helium-${LATEST_LINUX_VERSION}-x86_64_linux.tar.xz"
+            ARM_URL="https://github.com/imputnet/helium-linux/releases/download/${LATEST_LINUX_VERSION}/helium-${LATEST_LINUX_VERSION}-arm64_linux.tar.xz"
+            
+            echo "Fetching Linux hashes..."
+            X86_HASH=$(nix hash convert --to sri --hash-algo sha256 $(nix-prefetch-url "$X86_URL"))
+            ARM_HASH=$(nix hash convert --to sri --hash-algo sha256 $(nix-prefetch-url "$ARM_URL"))
+            
+            sed -i "/x86_64-linux = {/,/hash =/ s|hash = \"[^\"]*\"|hash = \"$X86_HASH\"|" flake.nix
+            sed -i "/aarch64-linux = {/,/hash =/ s|hash = \"[^\"]*\"|hash = \"$ARM_HASH\"|" flake.nix
+            UPDATE_NEEDED=true
+          else
+            echo "Linux is already at the latest version: $LATEST_LINUX_VERSION"
           fi
 
-          # 3. Get current version using Nix
-          CURRENT_VERSION=$(nix eval --raw .#helium.version)
+          # 2. macOS Update Check
+          echo "Checking for macOS updates..."
+          LATEST_DARWIN_VERSION=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
+            https://api.github.com/repos/imputnet/helium-macos/releases/latest | jq -r .tag_name)
+          CURRENT_DARWIN_VERSION=$(nix eval --raw .#packages.x86_64-darwin.helium.version)
 
-          if [ "$LATEST_VERSION" == "$CURRENT_VERSION" ]; then
-            echo "Already at the latest version: $LATEST_VERSION"
-            echo "update_needed=false" >> $GITHUB_OUTPUT
-            exit 0
+          if [ "$LATEST_DARWIN_VERSION" != "$CURRENT_DARWIN_VERSION" ]; then
+            echo "Updating macOS from $CURRENT_DARWIN_VERSION to $LATEST_DARWIN_VERSION"
+            sed -i "/darwin = \"/ s/darwin = \"$CURRENT_DARWIN_VERSION\"/darwin = \"$LATEST_DARWIN_VERSION\"/" flake.nix
+            
+            X86_DARWIN_URL="https://github.com/imputnet/helium-macos/releases/download/${LATEST_DARWIN_VERSION}/helium_${LATEST_DARWIN_VERSION}_x86_64-macos.dmg"
+            ARM_DARWIN_URL="https://github.com/imputnet/helium-macos/releases/download/${LATEST_DARWIN_VERSION}/helium_${LATEST_DARWIN_VERSION}_arm64-macos.dmg"
+            
+            echo "Fetching macOS hashes..."
+            X86_DARWIN_HASH=$(nix hash convert --to sri --hash-algo sha256 $(nix-prefetch-url "$X86_DARWIN_URL"))
+            ARM_DARWIN_HASH=$(nix hash convert --to sri --hash-algo sha256 $(nix-prefetch-url "$ARM_DARWIN_URL"))
+            
+            sed -i "/x86_64-darwin = {/,/hash =/ s|hash = \"[^\"]*\"|hash = \"$X86_DARWIN_HASH\"|" flake.nix
+            sed -i "/aarch64-darwin = {/,/hash =/ s|hash = \"[^\"]*\"|hash = \"$ARM_DARWIN_HASH\"|" flake.nix
+            UPDATE_NEEDED=true
+          else
+            echo "macOS is already at the latest version: $LATEST_DARWIN_VERSION"
           fi
 
-          echo "update_needed=true" >> $GITHUB_OUTPUT
-          echo "Updating from $CURRENT_VERSION to $LATEST_VERSION"
-
-          # 4. Update version string
-          sed -i "s/version = \"$CURRENT_VERSION\"/version = \"$LATEST_VERSION\"/" flake.nix
-
-          # 5. Fetch new hashes and convert to SRI format
-          X86_URL="https://github.com/imputnet/helium-linux/releases/download/${LATEST_VERSION}/helium-${LATEST_VERSION}-x86_64_linux.tar.xz"
-          ARM_URL="https://github.com/imputnet/helium-linux/releases/download/${LATEST_VERSION}/helium-${LATEST_VERSION}-arm64_linux.tar.xz"
-          X86_DARWIN_URL="https://github.com/imputnet/helium-macos/releases/download/${LATEST_VERSION}/helium_${LATEST_VERSION}_x86_64-macos.dmg"
-          ARM_DARWIN_URL="https://github.com/imputnet/helium-macos/releases/download/${LATEST_VERSION}/helium_${LATEST_VERSION}_arm64-macos.dmg"
-
-          echo "Fetching hashes..."
-          X86_HASH=$(nix hash to-sri --type sha256 $(nix-prefetch-url "$X86_URL"))
-          ARM_HASH=$(nix hash to-sri --type sha256 $(nix-prefetch-url "$ARM_URL"))
-          X86_DARWIN_HASH=$(nix hash to-sri --type sha256 $(nix-prefetch-url "$X86_DARWIN_URL"))
-          ARM_DARWIN_HASH=$(nix hash to-sri --type sha256 $(nix-prefetch-url "$ARM_DARWIN_URL"))
-
-          # 6. Update hashes using safer delimiters
-          sed -i "/x86_64-linux = {/,/sha256 =/ s|sha256 = \"[^\"]*\"|sha256 = \"$X86_HASH\"|" flake.nix
-          sed -i "/aarch64-linux = {/,/sha256 =/ s|sha256 = \"[^\"]*\"|sha256 = \"$ARM_HASH\"|" flake.nix
-          sed -i "/x86_64-darwin = {/,/sha256 =/ s|sha256 = \"[^\"]*\"|sha256 = \"$X86_DARWIN_HASH\"|" flake.nix
-          sed -i "/aarch64-darwin = {/,/sha256 =/ s|sha256 = \"[^\"]*\"|sha256 = \"$ARM_DARWIN_HASH\"|" flake.nix
+          echo "update_needed=$UPDATE_NEEDED" >> $GITHUB_OUTPUT
 
       - name: Update flake inputs
         if: steps.update-check.outputs.update_needed == 'true'
@@ -93,6 +103,7 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add flake.nix flake.lock
-          VERSION=$(grep -oP 'version = "\K[^"]+' flake.nix)
-          git commit -m "chore: update helium to $VERSION and update flake.lock"
+          LINUX_V=$(nix eval --raw .#packages.x86_64-linux.helium.version)
+          DARWIN_V=$(nix eval --raw .#packages.x86_64-darwin.helium.version)
+          git commit -m "chore: update helium (linux: $LINUX_V, macos: $DARWIN_V) and update flake.lock"
           git push
