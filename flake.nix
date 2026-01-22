@@ -144,8 +144,8 @@
               mkdir -p $out/bin $out/opt/helium
               cp -r * $out/opt/helium
 
-              # The binary is named 'chrome' in the tarball
-              makeWrapper $out/opt/helium/chrome $out/bin/helium \
+              # The binary is named 'helium' as of version 0.8.3.1
+              makeWrapper $out/opt/helium/helium $out/bin/helium \
                 --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath (with pkgs; [
                 libGL
                 libvdpau
