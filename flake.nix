@@ -82,17 +82,17 @@
               glib
               gtk3
               libGL
-              libX11
-              libXScrnSaver
-              libXcomposite
-              libXcursor
-              libXdamage
-              libXext
-              libXfixes
-              libXi
-              libXrandr
-              libXrender
-              libXtst
+              libx11
+              libxscrnsaver
+              libxcomposite
+              libxcursor
+              libxdamage
+              libxext
+              libxfixes
+              libxi
+              libxrandr
+              libxrender
+              libxtst
               libdrm
               libgbm
               libpulseaudio
