@@ -180,6 +180,7 @@
               icon = "helium";
               desktopName = "Helium";
               genericName = "Web Browser";
+              comment = "Private, fast, and honest web browser";
               categories = ["Network" "WebBrowser"];
               terminal = false;
               mimeTypes = ["text/html" "text/xml" "application/xhtml+xml" "x-scheme-handler/http" "x-scheme-handler/https"];
@@ -187,7 +188,7 @@
           ];
 
           meta = with pkgs.lib; {
-            description = "Private, fast, and honest web browser based on ungoogled-chromium";
+            description = "Private, fast, and honest web browser";
             homepage = "https://helium.computer/";
             license = licenses.gpl3Only;
             platforms = ["x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin"];
